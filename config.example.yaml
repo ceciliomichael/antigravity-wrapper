@@ -1,0 +1,33 @@
+# Antigravity Wrapper Configuration
+# Copy this file to config.yaml and customize as needed
+
+# Server settings
+port: 3047
+host: "0.0.0.0"
+
+# API key authentication (optional)
+# If configured, clients must provide one of these keys via:
+# - Authorization: Bearer <api_key>
+# - x-api-key: <api_key>
+api_keys:
+  - "your-api-key-here"
+  # - "your-second-api-key-here"
+
+# Proxy settings (optional)
+# Supports HTTP, HTTPS, and SOCKS5 proxies
+# proxy_url: "http://127.0.0.1:8080"
+# proxy_url: "socks5://127.0.0.1:1080"
+# proxy_url: "socks5://user:pass@127.0.0.1:1080"
+
+# Credentials directory
+# Where OAuth credentials are stored
+# Default: ~/.antigravity
+credentials_dir: ""
+
+# Logging settings
+# Available levels: debug, info, warn, error
+log_level: "info"
+
+# Debug mode
+# Enables verbose logging and Gin debug mode
+debug: false
