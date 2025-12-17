@@ -1,0 +1,1 @@
+Start-Process -FilePath "wrapper.exe" -WindowStyle Hidden -WorkingDirectory "c:\Users\Administrator\Desktop\antigravity-wrapper"

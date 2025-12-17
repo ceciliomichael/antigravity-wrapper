@@ -31,16 +31,22 @@ type ModelConfig struct {
 // modelConfigs contains static model configurations keyed by model names.
 var modelConfigs = map[string]*ModelConfig{
 	"gemini-2.5-flash": {
+		Name: "models/gemini-2.5-flash",
+	},
+	"gemini-2.5-flash-thinking": {
 		Thinking: &ThinkingSupport{Min: 0, Max: 24576, ZeroAllowed: true, DynamicAllowed: true},
-		Name:     "models/gemini-2.5-flash",
+		Name:     "gemini-2.5-flash",
 	},
 	"gemini-3-flash": {
 		Thinking: &ThinkingSupport{Min: 128, Max: 32768, ZeroAllowed: false, DynamicAllowed: true},
 		Name:     "models/gemini-3-flash",
 	},
 	"gemini-2.5-flash-lite": {
+		Name: "models/gemini-2.5-flash-lite",
+	},
+	"gemini-2.5-flash-lite-thinking": {
 		Thinking: &ThinkingSupport{Min: 0, Max: 24576, ZeroAllowed: true, DynamicAllowed: true},
-		Name:     "models/gemini-2.5-flash-lite",
+		Name:     "gemini-2.5-flash-lite",
 	},
 	"gemini-3-pro-high": {
 		Thinking: &ThinkingSupport{Min: 128, Max: 32768, ZeroAllowed: false, DynamicAllowed: true},
@@ -60,7 +66,7 @@ var modelConfigs = map[string]*ModelConfig{
 	},
 	"claude-opus-4-5-thinking": {
 		Thinking:            &ThinkingSupport{Min: 1024, Max: 200000, ZeroAllowed: false, DynamicAllowed: true},
-		Name:                "claude-opus-4-5-thinking",
+		Name:                "claude-opus-4-5",
 		MaxCompletionTokens: 64000,
 	},
 	"claude-opus-4-5": {
@@ -79,7 +85,7 @@ func GetModelConfig(model string) *ModelConfig {
 func ModelName2Alias(modelName string) string {
 	// Filter out internal-only models that shouldn't be exposed
 	switch modelName {
-	case "chat_20706", "chat_23310", "gemini-2.5-flash-thinking", "gemini-2.5-pro", "gemini-3-pro-image", "rev19-uic3-1p":
+	case "chat_20706", "chat_23310", "gemini-2.5-pro", "gemini-3-pro-image", "rev19-uic3-1p":
 		return ""
 	default:
 		return modelName
@@ -128,6 +134,15 @@ func (r *Registry) loadDefaultModels() {
 			Type:        "antigravity",
 			DisplayName: "Gemini 2.5 Flash",
 			Name:        "models/gemini-2.5-flash",
+		},
+		{
+			ID:          "gemini-2.5-flash-thinking",
+			Object:      "model",
+			Created:     now,
+			OwnedBy:     "antigravity",
+			Type:        "antigravity",
+			DisplayName: "Gemini 2.5 Flash (Thinking)",
+			Name:        "models/gemini-2.5-flash",
 			Thinking:    &ThinkingSupport{Min: 0, Max: 24576, ZeroAllowed: true, DynamicAllowed: true},
 		},
 		{
@@ -147,6 +162,15 @@ func (r *Registry) loadDefaultModels() {
 			OwnedBy:     "antigravity",
 			Type:        "antigravity",
 			DisplayName: "Gemini 2.5 Flash Lite",
+			Name:        "models/gemini-2.5-flash-lite",
+		},
+		{
+			ID:          "gemini-2.5-flash-lite-thinking",
+			Object:      "model",
+			Created:     now,
+			OwnedBy:     "antigravity",
+			Type:        "antigravity",
+			DisplayName: "Gemini 2.5 Flash Lite (Thinking)",
 			Name:        "models/gemini-2.5-flash-lite",
 			Thinking:    &ThinkingSupport{Min: 0, Max: 24576, ZeroAllowed: true, DynamicAllowed: true},
 		},
