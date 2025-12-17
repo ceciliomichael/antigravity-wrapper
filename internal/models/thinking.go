@@ -162,7 +162,7 @@ func StripThinkingConfigIfUnsupported(model string, payload []byte) []byte {
 const DefaultThinkingBudget = 24576
 
 // ApplyDefaultThinkingIfNeeded injects default thinkingConfig for models that support thinking.
-// Uses "high" reasoning effort (24576 tokens) by default.
+// Uses "high" reasoning effort (24576 tokens) by default, except for gemini-3-flash which uses "minimal".
 func ApplyDefaultThinkingIfNeeded(model string, payload []byte) []byte {
 	if !ModelHasDefaultThinking(model) {
 		return payload
@@ -170,7 +170,13 @@ func ApplyDefaultThinkingIfNeeded(model string, payload []byte) []byte {
 	if gjson.GetBytes(payload, "request.generationConfig.thinkingConfig").Exists() {
 		return payload
 	}
-	payload, _ = sjson.SetBytes(payload, "request.generationConfig.thinkingConfig.thinkingBudget", DefaultThinkingBudget)
+
+	budget := DefaultThinkingBudget
+	if model == "gemini-3-flash" {
+		budget = ReasoningEffortBudgetMapping["minimal"]
+	}
+
+	payload, _ = sjson.SetBytes(payload, "request.generationConfig.thinkingConfig.thinkingBudget", budget)
 	payload, _ = sjson.SetBytes(payload, "request.generationConfig.thinkingConfig.include_thoughts", true)
 	return payload
 }
