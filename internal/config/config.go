@@ -13,9 +13,14 @@ import (
 // Config holds the application configuration.
 type Config struct {
 	// Server settings
-	Port    int      `yaml:"port"`
-	Host    string   `yaml:"host"`
-	APIKeys []string `yaml:"api_keys"`
+	Port      int      `yaml:"port"`
+	Host      string   `yaml:"host"`
+	APIKeys   []string `yaml:"api_keys"`
+	RateLimit int      `yaml:"rate_limit"`
+
+	// Security settings
+	MasterSecret string `yaml:"master_secret"`
+	DataDir      string `yaml:"data_dir"`
 
 	// Proxy settings
 	ProxyURL string `yaml:"proxy_url"`
@@ -33,9 +38,11 @@ func DefaultConfig() *Config {
 	return &Config{
 		Port:           8080,
 		Host:           "0.0.0.0",
+		DataDir:        "data",
 		CredentialsDir: defaultCredentialsDir(),
 		LogLevel:       "info",
 		Debug:          false,
+		RateLimit:      1000,
 	}
 }
 
@@ -79,6 +86,14 @@ func (c *Config) applyEnvOverrides() {
 		c.Host = v
 	}
 
+	if v := os.Getenv("ANTIGRAVITY_MASTER_SECRET"); v != "" {
+		c.MasterSecret = v
+	}
+
+	if v := os.Getenv("ANTIGRAVITY_DATA_DIR"); v != "" {
+		c.DataDir = v
+	}
+
 	if v := os.Getenv("ANTIGRAVITY_PROXY_URL"); v != "" {
 		c.ProxyURL = v
 	}
@@ -101,6 +116,12 @@ func (c *Config) applyEnvOverrides() {
 
 	if v := os.Getenv("ANTIGRAVITY_DEBUG"); v == "true" || v == "1" {
 		c.Debug = true
+	}
+
+	if v := os.Getenv("ANTIGRAVITY_RATE_LIMIT"); v != "" {
+		if limit, err := parsePort(v); err == nil {
+			c.RateLimit = limit
+		}
 	}
 }
 
@@ -141,4 +162,12 @@ func (c *Config) CredentialsPath(filename string) string {
 		dir = defaultCredentialsDir()
 	}
 	return filepath.Join(dir, filename)
+}
+
+// EnsureDataDir creates the data directory if it doesn't exist.
+func (c *Config) EnsureDataDir() error {
+	if c.DataDir == "" {
+		return nil
+	}
+	return os.MkdirAll(c.DataDir, 0700)
 }

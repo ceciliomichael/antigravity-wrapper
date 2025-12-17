@@ -1,6 +1,7 @@
 package models
 
 import (
+	"strings"
 	"sync"
 	"time"
 )
@@ -86,11 +87,16 @@ func ModelName2Alias(modelName string) string {
 }
 
 // Alias2ModelName converts user-facing names to internal model names.
-// It looks up the model configuration and returns the configured Name if available.
+// It only performs aliasing when the Name field points to a different model ID
+// (not a display name like "models/gemini-2.5-flash").
 func Alias2ModelName(modelName string) string {
 	cfg := GetModelConfig(modelName)
 	if cfg != nil && cfg.Name != "" {
-		return cfg.Name
+		// Only alias if Name is a different model ID (not a display path)
+		// Display paths start with "models/" or match the input
+		if cfg.Name != modelName && !strings.HasPrefix(cfg.Name, "models/") {
+			return cfg.Name
+		}
 	}
 	return modelName
 }

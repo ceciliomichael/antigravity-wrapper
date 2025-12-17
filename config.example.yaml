@@ -5,6 +5,11 @@
 port: 3047
 host: "0.0.0.0"
 
+# Rate limit (optional)
+# Maximum requests per minute
+# Default: 1000
+rate_limit: 1000
+
 # API key authentication (optional)
 # If configured, clients must provide one of these keys via:
 # - Authorization: Bearer <api_key>
@@ -12,6 +17,15 @@ host: "0.0.0.0"
 api_keys:
   - "your-api-key-here"
   # - "your-second-api-key-here"
+
+# Master Secret (optional)
+# Used to generate dynamic API keys via the /admin/keys endpoint
+# If set, you can use: POST /admin/keys with Authorization: Bearer <master_secret>
+master_secret: ""
+
+# Data Directory (optional)
+# Where dynamic API keys are stored (default: data)
+data_dir: "data"
 
 # Proxy settings (optional)
 # Supports HTTP, HTTPS, and SOCKS5 proxies

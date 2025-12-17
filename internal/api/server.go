@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/anthropics/antigravity-wrapper/internal/auth"
@@ -24,6 +25,8 @@ type Server struct {
 	store          *auth.Store
 	credentials    *auth.Credentials
 	accountManager *auth.AccountManager
+	keyStore       *auth.KeyStore
+	limiters       sync.Map
 }
 
 // NewServer creates a new API server instance.
@@ -36,8 +39,21 @@ func NewServer(cfg *config.Config) (*Server, error) {
 
 	engine := gin.New()
 	engine.Use(gin.Recovery())
-	engine.Use(corsMiddleware())
-	engine.Use(requestLogger())
+
+	// Ensure data directory exists
+	if err := cfg.EnsureDataDir(); err != nil {
+		return nil, fmt.Errorf("create data directory: %w", err)
+	}
+
+	// Initialize KeyStore
+	var keyStore *auth.KeyStore
+	if cfg.DataDir != "" {
+		var err error
+		keyStore, err = auth.NewKeyStore(cfg.DataDir)
+		if err != nil {
+			return nil, fmt.Errorf("initialize key store: %w", err)
+		}
+	}
 
 	store := auth.NewStore(cfg.CredentialsDir)
 	tokenManager := auth.NewTokenManager(store, executor.NewHTTPClient(cfg.ProxyURL, 30*time.Second))
@@ -49,6 +65,14 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		executor:     exec,
 		tokenManager: tokenManager,
 		store:        store,
+		keyStore:     keyStore,
+	}
+
+	// Apply global middlewares
+	engine.Use(corsMiddleware())
+	engine.Use(requestLogger())
+	if cfg.RateLimit > 0 {
+		engine.Use(s.rateLimitMiddleware())
 	}
 
 	// Try to load AccountManager for round-robin (priority)
@@ -100,6 +124,9 @@ func (s *Server) setupRoutes() {
 	// Health check
 	s.engine.GET("/health", s.healthHandler)
 
+	// Admin endpoints
+	s.engine.POST("/admin/keys", s.generateKeyHandler)
+
 	// OpenAI-compatible endpoints
 	v1 := s.engine.Group("/v1")
 	v1.Use(apiAuth)
@@ -111,51 +138,6 @@ func (s *Server) setupRoutes() {
 
 	// Claude/Anthropic-compatible endpoint
 	s.engine.POST("/v1/messages", apiAuth, s.messagesHandler)
-}
-
-// apiKeyAuth returns middleware that validates API keys if configured.
-func (s *Server) apiKeyAuth() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Skip auth if no API keys configured
-		if len(s.cfg.APIKeys) == 0 {
-			c.Next()
-			return
-		}
-
-		// Extract API key from Authorization header
-		authHeader := c.GetHeader("Authorization")
-		apiKey := ""
-		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-			apiKey = authHeader[7:]
-		}
-
-		// Also check x-api-key header
-		if apiKey == "" {
-			apiKey = c.GetHeader("x-api-key")
-		}
-
-		// Validate API key
-		valid := false
-		for _, key := range s.cfg.APIKeys {
-			if key == apiKey {
-				valid = true
-				break
-			}
-		}
-
-		if !valid {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": gin.H{
-					"message": "Invalid API key",
-					"type":    "authentication_error",
-				},
-			})
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
 }
 
 // Start begins listening for HTTP requests.
@@ -176,52 +158,4 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	return s.httpServer.Shutdown(ctx)
-}
-
-// corsMiddleware returns middleware that handles CORS (Cross-Origin Resource Sharing).
-func corsMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		origin := c.Request.Header.Get("Origin")
-
-		// Allow all origins
-		if origin != "" {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
-		} else {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		}
-
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Requested-With")
-		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
-
-		// Handle preflight OPTIONS request
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
-		}
-
-		c.Next()
-	}
-}
-
-// requestLogger returns middleware for logging requests.
-func requestLogger() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		start := time.Now()
-		path := c.Request.URL.Path
-
-		c.Next()
-
-		latency := time.Since(start)
-		status := c.Writer.Status()
-
-		log.WithFields(log.Fields{
-			"status":  status,
-			"method":  c.Request.Method,
-			"path":    path,
-			"latency": latency,
-			"ip":      c.ClientIP(),
-		}).Info("Request completed")
-	}
 }
