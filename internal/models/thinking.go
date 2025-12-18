@@ -167,14 +167,15 @@ func ApplyDefaultThinkingIfNeeded(model string, payload []byte) []byte {
 	if !ModelHasDefaultThinking(model) {
 		return payload
 	}
-	if gjson.GetBytes(payload, "request.generationConfig.thinkingConfig").Exists() {
-		return payload
-	}
 
+	// We enforce default thinking config, ignoring client overrides
 	budget := DefaultThinkingBudget
 	if model == "gemini-3-flash" {
 		budget = ReasoningEffortBudgetMapping["minimal"]
 	}
+
+	// Clamp the budget to the model's supported range (e.g. gemini-3-flash-minimal max 512)
+	budget = NormalizeThinkingBudget(model, budget)
 
 	payload, _ = sjson.SetBytes(payload, "request.generationConfig.thinkingConfig.thinkingBudget", budget)
 	payload, _ = sjson.SetBytes(payload, "request.generationConfig.thinkingConfig.include_thoughts", true)

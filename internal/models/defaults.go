@@ -11,8 +11,8 @@ var modelConfigs = map[string]*ModelConfig{
 		Thinking: &ThinkingSupport{Min: 0, Max: 24576, ZeroAllowed: true, DynamicAllowed: true},
 		Name:     "gemini-2.5-flash",
 	},
-	"gemini-3-flash": {
-		Thinking: &ThinkingSupport{Min: 128, Max: 32768, ZeroAllowed: false, DynamicAllowed: true},
+	"gemini-3-flash-minimal": {
+		Thinking: &ThinkingSupport{Min: 128, Max: 512, ZeroAllowed: false, DynamicAllowed: true},
 		Name:     "models/gemini-3-flash",
 	},
 	"gemini-3-flash-thinking": {
@@ -31,7 +31,7 @@ var modelConfigs = map[string]*ModelConfig{
 		Name:     "models/gemini-3-pro-high",
 	},
 	"gemini-3-pro-low": {
-		Thinking: &ThinkingSupport{Min: 128, Max: 32768, ZeroAllowed: false, DynamicAllowed: true},
+		Thinking: &ThinkingSupport{Min: 128, Max: 1024, ZeroAllowed: false, DynamicAllowed: true},
 		Name:     "models/gemini-3-pro-low",
 	},
 	"claude-sonnet-4-5": {
