@@ -44,7 +44,7 @@ var modelConfigs = map[string]*ModelConfig{
 	},
 	"claude-opus-4-5-thinking": {
 		Thinking:            &ThinkingSupport{Min: 1024, Max: 200000, ZeroAllowed: false, DynamicAllowed: true},
-		Name:                "claude-opus-4-5",
+		Name:                "claude-opus-4-5-thinking",
 		MaxCompletionTokens: 64000,
 	},
 	"claude-opus-4-5": {

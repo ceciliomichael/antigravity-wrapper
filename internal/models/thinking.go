@@ -177,6 +177,30 @@ func ApplyDefaultThinkingIfNeeded(model string, payload []byte) []byte {
 	// Clamp the budget to the model's supported range (e.g. gemini-3-flash-minimal max 512)
 	budget = NormalizeThinkingBudget(model, budget)
 
+	// Ensure budget is less than maxOutputTokens if set
+	maxTokens := gjson.GetBytes(payload, "request.generationConfig.maxOutputTokens")
+	if maxTokens.Exists() && maxTokens.Int() > 0 {
+		mt := int(maxTokens.Int())
+		if budget >= mt {
+			// Reserve some tokens for response or just cap it below max
+			// Using 80% of max tokens or max tokens - 1024 as heuristic,
+			// but simply ensuring it's strictly less is the hard requirement.
+			// Let's safe-guard it to be at most maxTokens.
+			// However, usually we need room for the actual response.
+			// Let's cap at maxTokens - 1 (strict requirement is budget < max)
+			// A safer bet is likely min(budget, maxTokens) but strictly less.
+			newBudget := mt - 1
+			if newBudget < 0 {
+				newBudget = 0
+			}
+			// If the clamped budget is below the model's minimum, we might have a problem,
+			// but we must respect the max_tokens constraint first to avoid API error.
+			if newBudget < budget {
+				budget = newBudget
+			}
+		}
+	}
+
 	payload, _ = sjson.SetBytes(payload, "request.generationConfig.thinkingConfig.thinkingBudget", budget)
 	payload, _ = sjson.SetBytes(payload, "request.generationConfig.thinkingConfig.include_thoughts", true)
 	return payload
