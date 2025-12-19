@@ -137,7 +137,9 @@ func (s *Server) handleStreamingOpenAI(c *gin.Context, modelName string, payload
 			break
 		}
 
-		responses := translator.ConvertAntigravityResponseToOpenAI(modelName, chunk.Data, state)
+		responses := translator.ConvertAntigravityResponseToOpenAI(modelName, chunk.Data, state, &translator.TranslatorOptions{
+			ThinkingAsContent: s.cfg.ThinkingAsContent,
+		})
 		for _, resp := range responses {
 			if resp != "" {
 				c.Writer.WriteString("data: " + resp + "\n\n")
@@ -172,7 +174,9 @@ func (s *Server) handleNonStreamingOpenAI(c *gin.Context, modelName string, payl
 		return
 	}
 
-	converted := translator.ConvertAntigravityResponseToOpenAINonStream(modelName, resp.Body)
+	converted := translator.ConvertAntigravityResponseToOpenAINonStream(modelName, resp.Body, &translator.TranslatorOptions{
+		ThinkingAsContent: s.cfg.ThinkingAsContent,
+	})
 	c.Header("Content-Type", "application/json")
 	c.String(http.StatusOK, converted)
 }
@@ -207,7 +211,9 @@ func (s *Server) handleStreamingResponses(c *gin.Context, modelName string, payl
 			break
 		}
 
-		responses := translator.ConvertAntigravityResponseToOpenAI(modelName, chunk.Data, state)
+		responses := translator.ConvertAntigravityResponseToOpenAI(modelName, chunk.Data, state, &translator.TranslatorOptions{
+			ThinkingAsContent: s.cfg.ThinkingAsContent,
+		})
 		for _, resp := range responses {
 			if resp != "" {
 				c.Writer.WriteString("data: " + resp + "\n\n")
@@ -242,7 +248,9 @@ func (s *Server) handleNonStreamingResponses(c *gin.Context, modelName string, p
 		return
 	}
 
-	converted := translator.ConvertAntigravityResponseToOpenAINonStream(modelName, resp.Body)
+	converted := translator.ConvertAntigravityResponseToOpenAINonStream(modelName, resp.Body, &translator.TranslatorOptions{
+		ThinkingAsContent: s.cfg.ThinkingAsContent,
+	})
 	c.Header("Content-Type", "application/json")
 	c.String(http.StatusOK, converted)
 }

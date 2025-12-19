@@ -25,6 +25,9 @@ type Config struct {
 	// Proxy settings
 	ProxyURL string `yaml:"proxy_url"`
 
+	// Feature flags
+	ThinkingAsContent bool `yaml:"thinking_as_content"`
+
 	// Credentials settings
 	CredentialsDir string `yaml:"credentials_dir"`
 
@@ -96,6 +99,10 @@ func (c *Config) applyEnvOverrides() {
 
 	if v := os.Getenv("ANTIGRAVITY_PROXY_URL"); v != "" {
 		c.ProxyURL = v
+	}
+
+	if v := os.Getenv("ANTIGRAVITY_THINKING_AS_CONTENT"); v == "true" || v == "1" {
+		c.ThinkingAsContent = true
 	}
 
 	if v := os.Getenv("ANTIGRAVITY_CREDENTIALS_DIR"); v != "" {

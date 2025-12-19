@@ -20,11 +20,30 @@ func NewHTTPClient(proxyURL string, timeout time.Duration) *http.Client {
 		client.Timeout = timeout
 	}
 
+	var transport *http.Transport
 	if proxyURL != "" {
-		transport := buildProxyTransport(proxyURL)
-		if transport != nil {
-			client.Transport = transport
+		transport = buildProxyTransport(proxyURL)
+	} else {
+		// Create default transport with robust settings
+		transport = &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
 		}
+	}
+
+	if transport != nil {
+		// Increase IdleConnTimeout to support long-thinking models (e.g. Gemini 3 Pro High)
+		// requiring maintained connections during long pauses in data or thought generation.
+		transport.IdleConnTimeout = 15 * time.Minute
+		client.Transport = transport
 	}
 
 	return client

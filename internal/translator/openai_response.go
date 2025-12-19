@@ -16,14 +16,24 @@ import (
 type OpenAIStreamState struct {
 	UnixTimestamp int64
 	FunctionIndex int
+	ThinkingOpen  bool
+}
+
+// TranslatorOptions configures the translation behavior.
+type TranslatorOptions struct {
+	ThinkingAsContent bool
 }
 
 var functionCallIDCounter uint64
 
 // ConvertAntigravityResponseToOpenAI converts a streaming Antigravity response to OpenAI format.
-func ConvertAntigravityResponseToOpenAI(modelName string, rawJSON []byte, state *OpenAIStreamState) []string {
+func ConvertAntigravityResponseToOpenAI(modelName string, rawJSON []byte, state *OpenAIStreamState, opts *TranslatorOptions) []string {
 	if state == nil {
 		state = &OpenAIStreamState{}
+	}
+
+	if opts == nil {
+		opts = &TranslatorOptions{}
 	}
 
 	if bytes.Equal(rawJSON, []byte("[DONE]")) {
@@ -106,8 +116,20 @@ func ConvertAntigravityResponseToOpenAI(modelName string, rawJSON []byte, state 
 
 				// Handle reasoning content vs regular content
 				if partResult.Get("thought").Bool() {
-					template, _ = sjson.Set(template, "choices.0.delta.reasoning_content", textContent)
+					if opts.ThinkingAsContent {
+						if !state.ThinkingOpen {
+							textContent = "<think>\n" + textContent
+							state.ThinkingOpen = true
+						}
+						template, _ = sjson.Set(template, "choices.0.delta.content", textContent)
+					} else {
+						template, _ = sjson.Set(template, "choices.0.delta.reasoning_content", textContent)
+					}
 				} else {
+					if opts.ThinkingAsContent && state.ThinkingOpen {
+						textContent = "\n</think>\n\n" + textContent
+						state.ThinkingOpen = false
+					}
 					template, _ = sjson.Set(template, "choices.0.delta.content", textContent)
 				}
 				template, _ = sjson.Set(template, "choices.0.delta.role", "assistant")
@@ -173,7 +195,11 @@ func ConvertAntigravityResponseToOpenAI(modelName string, rawJSON []byte, state 
 }
 
 // ConvertAntigravityResponseToOpenAINonStream converts a non-streaming response.
-func ConvertAntigravityResponseToOpenAINonStream(modelName string, rawJSON []byte) string {
+func ConvertAntigravityResponseToOpenAINonStream(modelName string, rawJSON []byte, opts *TranslatorOptions) string {
+	if opts == nil {
+		opts = &TranslatorOptions{}
+	}
+
 	responseResult := gjson.GetBytes(rawJSON, "response")
 	if !responseResult.Exists() {
 		return ""
@@ -229,7 +255,11 @@ func ConvertAntigravityResponseToOpenAINonStream(modelName string, rawJSON []byt
 		for _, part := range parts.Array() {
 			if text := part.Get("text"); text.Exists() {
 				if part.Get("thought").Bool() {
-					reasoningBuilder.WriteString(text.String())
+					if opts.ThinkingAsContent {
+						contentBuilder.WriteString("<think>\n" + text.String() + "\n</think>\n\n")
+					} else {
+						reasoningBuilder.WriteString(text.String())
+					}
 				} else {
 					contentBuilder.WriteString(text.String())
 				}
