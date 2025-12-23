@@ -1,12 +1,17 @@
 package api
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
+	"github.com/tidwall/gjson"
 	"golang.org/x/time/rate"
 )
 
@@ -95,12 +100,20 @@ func (s *Server) apiKeyAuth() gin.HandlerFunc {
 func (s *Server) rateLimitMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		limit := s.cfg.RateLimit
+		key := extractAPIKey(c)
+
+		// Check for per-key rate limit
+		if key != "" && s.keyStore != nil {
+			if apiKey := s.keyStore.Get(key); apiKey != nil && apiKey.RateLimit > 0 {
+				limit = apiKey.RateLimit
+			}
+		}
+
 		if limit <= 0 {
 			c.Next()
 			return
 		}
 
-		key := extractAPIKey(c)
 		if key == "" {
 			key = c.ClientIP()
 		}
@@ -124,6 +137,82 @@ func (s *Server) rateLimitMiddleware() gin.HandlerFunc {
 	}
 }
 
+// modelAccessMiddleware returns middleware that validates model access for API keys.
+func (s *Server) modelAccessMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Only check POST requests with a body
+		if c.Request.Method != "POST" {
+			c.Next()
+			return
+		}
+
+		apiKey := extractAPIKey(c)
+
+		// Skip model check for config-based API keys (they have unrestricted access)
+		if slices.Contains(s.cfg.APIKeys, apiKey) {
+			c.Next()
+			return
+		}
+
+		// Get the API key from keystore
+		if s.keyStore == nil {
+			c.Next()
+			return
+		}
+
+		keyData := s.keyStore.Get(apiKey)
+		if keyData == nil {
+			c.Next()
+			return
+		}
+
+		// If no allowed models configured, allow all
+		if len(keyData.AllowedModels) == 0 {
+			c.Next()
+			return
+		}
+
+		// Read request body to extract model
+		body, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": gin.H{
+					"message": "Failed to read request body",
+					"type":    "invalid_request_error",
+				},
+			})
+			c.Abort()
+			return
+		}
+
+		// Restore the body for downstream handlers
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+
+		// Extract model from request
+		model := gjson.GetBytes(body, "model").String()
+		if model == "" {
+			// No model specified, use default - allow it
+			c.Next()
+			return
+		}
+
+		// Check if model is in allowed list
+		if !slices.Contains(keyData.AllowedModels, model) {
+			log.Warnf("API key attempted to use restricted model: %s", model)
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": gin.H{
+					"message": fmt.Sprintf("Model '%s' is not allowed for this API key", model),
+					"type":    "permission_error",
+				},
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
 // extractAPIKey extracts the API key from request headers.
 func extractAPIKey(c *gin.Context) string {
 	// Extract API key from Authorization header
@@ -138,4 +227,48 @@ func extractAPIKey(c *gin.Context) string {
 	}
 
 	return ""
+}
+
+// masterSecretAuth returns middleware that validates the Master Secret.
+func (s *Server) masterSecretAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Check if master secret is configured
+		if s.cfg.MasterSecret == "" {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error": gin.H{
+					"message": "Master secret not configured",
+					"type":    "configuration_error",
+				},
+			})
+			c.Abort()
+			return
+		}
+
+		// Validate Master Secret
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": gin.H{
+					"message": "Missing authorization header",
+					"type":    "authentication_error",
+				},
+			})
+			c.Abort()
+			return
+		}
+
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" || parts[1] != s.cfg.MasterSecret {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": gin.H{
+					"message": "Invalid master secret",
+					"type":    "authentication_error",
+				},
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
 }

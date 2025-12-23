@@ -71,9 +71,8 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	// Apply global middlewares
 	engine.Use(corsMiddleware())
 	engine.Use(requestLogger())
-	if cfg.RateLimit > 0 {
-		engine.Use(s.rateLimitMiddleware())
-	}
+	// Always enable rate limit middleware to support per-key limits
+	engine.Use(s.rateLimitMiddleware())
 
 	// Try to load AccountManager for round-robin (priority)
 	if accountManager := auth.LoadAccountManager(tokenManager); accountManager != nil {
@@ -125,11 +124,20 @@ func (s *Server) setupRoutes() {
 	s.engine.GET("/health", s.healthHandler)
 
 	// Admin endpoints
-	s.engine.POST("/admin/keys", s.generateKeyHandler)
+	admin := s.engine.Group("/admin")
+	admin.Use(s.masterSecretAuth())
+	{
+		admin.POST("/keys", s.generateKeyHandler)
+		admin.GET("/keys", s.listKeysHandler)
+		admin.PUT("/keys/:key", s.updateKeyHandler)
+		admin.DELETE("/keys/:key", s.revokeKeyHandler)
+		admin.GET("/models", s.listModelsHandler)
+	}
 
 	// OpenAI-compatible endpoints
 	v1 := s.engine.Group("/v1")
 	v1.Use(apiAuth)
+	v1.Use(s.modelAccessMiddleware())
 	{
 		v1.GET("/models", s.modelsHandler)
 		v1.POST("/chat/completions", s.chatCompletionsHandler)
@@ -137,7 +145,7 @@ func (s *Server) setupRoutes() {
 	}
 
 	// Claude/Anthropic-compatible endpoint
-	s.engine.POST("/v1/messages", apiAuth, s.messagesHandler)
+	s.engine.POST("/v1/messages", apiAuth, s.modelAccessMiddleware(), s.messagesHandler)
 }
 
 // Start begins listening for HTTP requests.
@@ -154,6 +162,12 @@ func (s *Server) Start() error {
 
 // Shutdown gracefully stops the server.
 func (s *Server) Shutdown(ctx context.Context) error {
+	if s.accountManager != nil {
+		if err := s.accountManager.SaveState(); err != nil {
+			log.Warnf("Failed to save account manager state: %v", err)
+		}
+	}
+
 	if s.httpServer == nil {
 		return nil
 	}

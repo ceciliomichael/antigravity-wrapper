@@ -17,9 +17,11 @@ const (
 
 // APIKey represents a generated API key.
 type APIKey struct {
-	Key       string    `json:"key"`
-	CreatedAt time.Time `json:"created_at"`
-	Note      string    `json:"note,omitempty"`
+	Key           string    `json:"key"`
+	CreatedAt     time.Time `json:"created_at"`
+	Note          string    `json:"note,omitempty"`
+	RateLimit     int       `json:"rate_limit,omitempty"`     // RPM limit (0 = use global default)
+	AllowedModels []string  `json:"allowed_models,omitempty"` // Models this key can access (empty = all)
 }
 
 // KeyStore manages API key persistence and validation.
@@ -50,21 +52,44 @@ func NewKeyStore(dir string) (*KeyStore, error) {
 }
 
 // Generate creates a new API key and saves it to the store.
-func (ks *KeyStore) Generate(note string) (*APIKey, error) {
+func (ks *KeyStore) Generate(note string, rateLimit int, allowedModels []string) (*APIKey, error) {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
 
 	key := uuid.New().String()
 	apiKey := &APIKey{
-		Key:       key,
-		CreatedAt: time.Now(),
-		Note:      note,
+		Key:           key,
+		CreatedAt:     time.Now(),
+		Note:          note,
+		RateLimit:     rateLimit,
+		AllowedModels: allowedModels,
 	}
 
 	ks.keys[key] = apiKey
 
 	if err := ks.save(); err != nil {
 		delete(ks.keys, key) // Rollback on failure
+		return nil, fmt.Errorf("save keys: %w", err)
+	}
+
+	return apiKey, nil
+}
+
+// Update modifies an existing API key.
+func (ks *KeyStore) Update(key string, note string, rateLimit int, allowedModels []string) (*APIKey, error) {
+	ks.mu.Lock()
+	defer ks.mu.Unlock()
+
+	apiKey, exists := ks.keys[key]
+	if !exists {
+		return nil, fmt.Errorf("key not found")
+	}
+
+	apiKey.Note = note
+	apiKey.RateLimit = rateLimit
+	apiKey.AllowedModels = allowedModels
+
+	if err := ks.save(); err != nil {
 		return nil, fmt.Errorf("save keys: %w", err)
 	}
 
@@ -78,6 +103,14 @@ func (ks *KeyStore) Validate(key string) bool {
 
 	_, exists := ks.keys[key]
 	return exists
+}
+
+// Get returns the API key details if found.
+func (ks *KeyStore) Get(key string) *APIKey {
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	return ks.keys[key]
 }
 
 // List returns all stored API keys.

@@ -94,11 +94,6 @@ func (m *AccountManager) Next() (*Credentials, error) {
 	// Advance index for next request (round-robin)
 	m.currentIndex = (m.currentIndex + 1) % len(m.accounts)
 
-	// Persist the updated index
-	if err := m.saveIndex(); err != nil {
-		log.Warnf("Failed to save current_index: %v", err)
-	}
-
 	return creds, nil
 }
 
@@ -116,8 +111,11 @@ func (m *AccountManager) toCredentials(account *Account) *Credentials {
 	}
 }
 
-// saveIndex persists the current_index back to the accounts.json file.
-func (m *AccountManager) saveIndex() error {
+// SaveState persists the current state (index) back to the accounts.json file.
+func (m *AccountManager) SaveState() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	// Read current file to preserve all data
 	data, err := os.ReadFile(m.filePath)
 	if err != nil {

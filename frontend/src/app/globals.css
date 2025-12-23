@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Thin scrollbar style */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+  }
+
+  /* Remove focus outlines and focus rings */
+  *,
+  *:focus,
+  *:focus-visible,
+  *:active {
+    outline: none !important;
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+    -moz-box-shadow: none !important;
+  }
+
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  [role="button"],
+  [tabindex]:not([tabindex="-1"]) {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus,
+  button:focus,
+  a:focus,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  button:focus-visible,
+  a:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+    -moz-box-shadow: none !important;
+  }
+
+  html,
+  body {
+    @apply bg-zinc-50 text-zinc-900;
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+}
